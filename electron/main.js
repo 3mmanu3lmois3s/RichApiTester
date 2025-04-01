@@ -1,3 +1,4 @@
+// electron/main.js
 const { app, BrowserWindow, Menu } = require("electron");
 const path = require("path");
 
@@ -10,16 +11,15 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
-      nodeIntegration: false
-    }
+      nodeIntegration: false,
+      webviewTag: true, // ¡Habilita el uso de <webview>!
+    },
   });
 
   const startUrl = process.env.ELECTRON_START_URL || "http://localhost:5173";
   mainWindow.loadURL(startUrl);
 
-  const menuTemplate = [
-    { label: "File", submenu: [{ role: "quit" }] }
-  ];
+  const menuTemplate = [{ label: "File", submenu: [{ role: "quit" }] }];
   const menu = Menu.buildFromTemplate(menuTemplate);
   Menu.setApplicationMenu(menu);
 

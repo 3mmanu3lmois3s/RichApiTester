@@ -1,4 +1,6 @@
+// src/components/Tabs.jsx
 import React, { useReducer, useState } from "react";
+import TestApiMock from "./TestApiMock"; // Asegúrate de que la ruta sea correcta
 
 const initialState = {
   tabs: [],
@@ -10,8 +12,11 @@ function tabsReducer(state, action) {
   switch (action.type) {
     case "ADD_TAB": {
       const { title, content, type } = action.payload;
+      // Para orquestador, permitir solo una pestaña
       if (type === "orch") {
-        const existingIndex = state.tabs.findIndex((tab) => tab.type === "orch");
+        const existingIndex = state.tabs.findIndex(
+          (tab) => tab.type === "orch"
+        );
         if (existingIndex !== -1) {
           return { ...state, activeIndex: existingIndex };
         }
@@ -35,7 +40,8 @@ function tabsReducer(state, action) {
       newTabs.splice(index, 1);
       let newActiveIndex = state.activeIndex;
       if (state.activeIndex === index) {
-        newActiveIndex = newTabs.length > 0 ? (index > 0 ? index - 1 : 0) : null;
+        newActiveIndex =
+          newTabs.length > 0 ? (index > 0 ? index - 1 : 0) : null;
       } else if (state.activeIndex > index) {
         newActiveIndex = state.activeIndex - 1;
       }
@@ -77,6 +83,7 @@ function Tabs() {
 
   return (
     <div className="h-full flex flex-col">
+      {/* Barra de pestañas con scroll horizontal */}
       <div className="flex overflow-x-auto bg-gray-200 p-2 space-x-1">
         {state.tabs.map((tab, i) => (
           <div
@@ -108,9 +115,10 @@ function Tabs() {
             </button>
           </div>
         ))}
+        {/* Botones para agregar nuevas pestañas */}
         <button
           className="flex-shrink-0 ml-2 px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600"
-          onClick={() => addTab("Test API Mock", <MockApiView />, "mock")}
+          onClick={() => addTab("Test API Mock", <TestApiMock />, "mock")}
         >
           +Mock
         </button>
@@ -127,6 +135,7 @@ function Tabs() {
           +Orch
         </button>
       </div>
+      {/* Contenido de la pestaña activa */}
       <div className="flex-1 bg-white p-4">
         {state.activeIndex !== null && state.tabs[state.activeIndex] ? (
           state.tabs[state.activeIndex].content
@@ -159,10 +168,6 @@ function EditableLabel({ initialValue, onSave }) {
       {value}
     </span>
   );
-}
-
-function MockApiView() {
-  return <div>Vista de Mock API</div>;
 }
 
 function RealApiView() {

@@ -1,3 +1,4 @@
+<!-- index.html en src/renderer -->
 <!DOCTYPE html>
 <html lang="es">
   <head>
@@ -7,6 +8,13 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- WebView para cargar la URL de prueba -->
+    <webview
+      id="test-webview"
+      style="display: none"
+      partition="persist:test"
+      preload="./webview-preload.js"
+    ></webview>
     <script type="module" src="./main.jsx"></script>
   </body>
 </html>
