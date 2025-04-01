@@ -4,7 +4,7 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build && if exist docs rmdir /s /q docs && mkdir docs && npx copyfiles -u 1 \"out/renderer/**/*\" docs && echo.> docs/.nojekyll"
+    "build": "electron-vite build && if exist docs ( rmdir /s /q docs ) && mkdir docs && npx copyfiles -u 2 \"out/renderer/**/*\" docs && echo.> docs/.nojekyll"
   },
   "dependencies": {
     "react": "^18.2.0",
