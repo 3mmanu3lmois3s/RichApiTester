@@ -4,7 +4,7 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build && npx copyfiles -u 1 \"dist/renderer/**/*\" docs"
+    "build": "electron-vite build && mkdir -p docs && npx copyfiles -u 1 \"dist/renderer/**/*\" docs && echo '' > docs/.nojekyll"
   },
   "dependencies": {
     "react": "^18.2.0",
