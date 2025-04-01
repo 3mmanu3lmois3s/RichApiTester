@@ -1,0 +1,21 @@
+<!-- index.html en src/renderer -->
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>RichAPITester</title>
+    <link rel="stylesheet" href="./index.css" />
+    <script type="module" crossorigin src="./assets/index-I7h_HOI0.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-D7HzLm8J.css">
+  </head>
+  <body>
+    <div id="root"></div>
+    <!-- WebView para cargar la URL de prueba -->
+    <webview
+      id="test-webview"
+      style="display: none"
+      partition="persist:test"
+      preload="./webview-preload.js"
+    ></webview>
+  </body>
+</html>

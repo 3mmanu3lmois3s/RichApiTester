@@ -4,8 +4,7 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "electron-vite dev",
-    "build": "electron-vite build",
-    "deploy": "gh-pages -d dist/renderer"
+    "build": "electron-vite build && cp -R dist/renderer docs"
   },
   "dependencies": {
     "react": "^18.2.0",
