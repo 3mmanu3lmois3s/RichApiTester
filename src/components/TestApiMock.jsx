@@ -1,6 +1,13 @@
 // src/components/TestApiMock.jsx
 import React, { useState, useRef, useEffect } from "react";
 
+// Función de detección de Electron usando el userAgent
+const isElectron = () => {
+  return (
+    typeof navigator === "object" && navigator.userAgent.includes("Electron")
+  );
+};
+
 function TestApiMock() {
   // Estados para configuración y respuesta
   const [baseUrl, setBaseUrl] = useState("");
@@ -10,12 +17,12 @@ function TestApiMock() {
   const [requestBody, setRequestBody] = useState("");
   const [response, setResponse] = useState("");
 
-  // Referencia al webview (solo en Electron)
+  // Referencia al webview (solo se usará en Electron)
   const webviewRef = useRef(null);
 
-  // Registrar eventos del webview para debug (si está disponible)
+  // Para debug: registrar eventos del webview
   useEffect(() => {
-    if (webviewRef.current) {
+    if (webviewRef.current && isElectron()) {
       const webview = webviewRef.current;
       webview.addEventListener("dom-ready", () => {
         console.log("webview: dom-ready");
@@ -96,7 +103,7 @@ function TestApiMock() {
     return finalPath;
   };
 
-  // Al presionar "Enviar"
+  // Al presionar "Enviar": usa executeJavaScript en Electron, o fetch en navegador
   const handleSendRequest = async () => {
     if (selectedIndex < 0) {
       alert("No hay endpoint seleccionado");
@@ -126,37 +133,28 @@ function TestApiMock() {
       }
     }
 
-    // Si estamos en Electron y el entorno indica que es Electron, usamos webview
     if (
-      window.process &&
-      window.process.versions &&
-      window.process.versions.electron
+      isElectron() &&
+      webviewRef.current &&
+      typeof webviewRef.current.executeJavaScript === "function"
     ) {
-      if (
-        webviewRef.current &&
-        typeof webviewRef.current.executeJavaScript === "function"
-      ) {
-        const codeToExecute = `
-          fetch("${fullURL}", ${JSON.stringify(options)})
-            .then(res => res.text())
-            .then(text => text)
-            .catch(err => "Error: " + err.message);
-        `;
-        try {
-          const result = await webviewRef.current.executeJavaScript(
-            codeToExecute
-          );
-          setResponse(result);
-        } catch (err) {
-          setResponse("Error al ejecutar la solicitud: " + err.message);
-        }
-      } else {
-        setResponse(
-          "Error: El webview no está disponible o no soporta executeJavaScript."
+      // Si estamos en Electron, inyectamos código en el webview
+      const codeToExecute = `
+        fetch("${fullURL}", ${JSON.stringify(options)})
+          .then(res => res.text())
+          .then(text => text)
+          .catch(err => "Error: " + err.message);
+      `;
+      try {
+        const result = await webviewRef.current.executeJavaScript(
+          codeToExecute
         );
+        setResponse(result);
+      } catch (err) {
+        setResponse("Error al ejecutar la solicitud: " + err.message);
       }
     } else {
-      // Fallback para navegador: usar fetch directamente
+      // En navegador: usar fetch directamente
       try {
         const res = await fetch(fullURL, options);
         const text = await res.text();
@@ -172,7 +170,6 @@ function TestApiMock() {
   return (
     <div className="p-4">
       <h2 className="text-2xl font-bold mb-4">Test API Mock</h2>
-
       {/* Campo para la Base URL */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">Base URL:</label>
@@ -270,7 +267,7 @@ function TestApiMock() {
         </pre>
       </div>
 
-      {/* Webview para cargar la URL (donde se registra el SW) */}
+      {/* Webview para cargar la URL (solo se usa en Electron) */}
       <div className="mb-4">
         <h3 className="font-semibold">Vista del Webview:</h3>
         {baseUrl ? (
