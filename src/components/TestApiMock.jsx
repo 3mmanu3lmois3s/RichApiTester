@@ -1,12 +1,10 @@
 // src/components/TestApiMock.jsx
 import React, { useState, useRef, useEffect } from "react";
 
-// Función de detección de Electron usando el userAgent
-const isElectron = () => {
-  return (
-    typeof navigator === "object" && navigator.userAgent.includes("Electron")
-  );
-};
+// Detección simple de entorno Electron usando el userAgent
+function isElectron() {
+  return navigator.userAgent.toLowerCase().includes("electron");
+}
 
 function TestApiMock() {
   // Estados para configuración y respuesta
@@ -16,13 +14,15 @@ function TestApiMock() {
   const [params, setParams] = useState({});
   const [requestBody, setRequestBody] = useState("");
   const [response, setResponse] = useState("");
+  // Estado para saber si el webview (en Electron) está listo
+  const [webviewReady, setWebviewReady] = useState(false);
 
-  // Referencia al webview (solo se usará en Electron)
+  // Referencia al webview (solo existe en Electron)
   const webviewRef = useRef(null);
 
-  // Para debug: registrar eventos del webview
+  // Registra eventos del webview (solo en Electron)
   useEffect(() => {
-    if (webviewRef.current && isElectron()) {
+    if (isElectron() && webviewRef.current) {
       const webview = webviewRef.current;
       webview.addEventListener("dom-ready", () => {
         console.log("webview: dom-ready");
@@ -32,6 +32,7 @@ function TestApiMock() {
       });
       webview.addEventListener("did-stop-loading", () => {
         console.log("webview: did-stop-loading");
+        setWebviewReady(true);
       });
       webview.addEventListener("did-fail-load", (ev) => {
         console.error("webview: did-fail-load", ev.errorDescription);
@@ -63,13 +64,17 @@ function TestApiMock() {
         setParams({});
       }
       setResponse("");
+      // En Electron, reiniciamos el estado de webviewReady para que espere la carga de la nueva URL
+      if (isElectron()) {
+        setWebviewReady(false);
+      }
     } catch (err) {
       console.error(err);
       alert("Error al cargar endpoints: " + err.message);
     }
   };
 
-  // Extrae parámetros de la ruta (por ejemplo: /api/user/:userId)
+  // Extrae parámetros de la ruta (ejemplo: /api/user/:userId)
   const extractParams = (path) => {
     const regex = /:([a-zA-Z0-9_]+)/g;
     let match;
@@ -94,7 +99,7 @@ function TestApiMock() {
     }
   };
 
-  // Reemplaza los parámetros en la ruta con los valores ingresados
+  // Reemplaza parámetros en la ruta con los valores ingresados
   const constructPath = (path, paramsObj) => {
     let finalPath = path;
     Object.entries(paramsObj).forEach(([key, value]) => {
@@ -103,7 +108,7 @@ function TestApiMock() {
     return finalPath;
   };
 
-  // Al presionar "Enviar": usa executeJavaScript en Electron, o fetch en navegador
+  // Al presionar "Enviar", se usa webview.executeJavaScript en Electron (si el webview está listo) o fetch directamente en navegador
   const handleSendRequest = async () => {
     if (selectedIndex < 0) {
       alert("No hay endpoint seleccionado");
@@ -133,12 +138,14 @@ function TestApiMock() {
       }
     }
 
-    if (
-      isElectron() &&
-      webviewRef.current &&
-      typeof webviewRef.current.executeJavaScript === "function"
-    ) {
-      // Si estamos en Electron, inyectamos código en el webview
+    if (isElectron()) {
+      if (!webviewReady) {
+        alert(
+          "El entorno de pruebas aún no está listo. Espera a que la URL se cargue."
+        );
+        return;
+      }
+      // Código a inyectar en el webview
       const codeToExecute = `
         fetch("${fullURL}", ${JSON.stringify(options)})
           .then(res => res.text())
@@ -170,6 +177,7 @@ function TestApiMock() {
   return (
     <div className="p-4">
       <h2 className="text-2xl font-bold mb-4">Test API Mock</h2>
+
       {/* Campo para la Base URL */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">Base URL:</label>
@@ -267,21 +275,24 @@ function TestApiMock() {
         </pre>
       </div>
 
-      {/* Webview para cargar la URL (solo se usa en Electron) */}
-      <div className="mb-4">
-        <h3 className="font-semibold">Vista del Webview:</h3>
-        {baseUrl ? (
-          <webview
-            ref={webviewRef}
-            style={{ width: "100%", height: "300px" }}
-            src={baseUrl}
-          />
-        ) : (
-          <p className="text-gray-500">
-            Ingresa la Base URL y presiona "Cargar Endpoints" para ver la vista.
-          </p>
-        )}
-      </div>
+      {/* Webview para cargar la URL (solo en Electron) */}
+      {isElectron() && (
+        <div className="mb-4">
+          <h3 className="font-semibold">Vista del Webview:</h3>
+          {baseUrl ? (
+            <webview
+              ref={webviewRef}
+              style={{ width: "100%", height: "300px" }}
+              src={baseUrl}
+            />
+          ) : (
+            <p className="text-gray-500">
+              Ingresa la Base URL y presiona "Cargar Endpoints" para ver la
+              vista.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
