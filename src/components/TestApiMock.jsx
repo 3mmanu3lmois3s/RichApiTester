@@ -10,10 +10,10 @@ function TestApiMock() {
   const [requestBody, setRequestBody] = useState("");
   const [response, setResponse] = useState("");
 
-  // Referencia al webview
+  // Referencia al webview (solo existe en Electron)
   const webviewRef = useRef(null);
 
-  // Para debug: registrar eventos del webview
+  // Para debug: registrar eventos del webview (si existe)
   useEffect(() => {
     if (webviewRef.current) {
       const webview = webviewRef.current;
@@ -96,7 +96,7 @@ function TestApiMock() {
     return finalPath;
   };
 
-  // Al presionar "Enviar", se inyecta código en el webview para hacer la solicitud fetch
+  // Al presionar "Enviar"
   const handleSendRequest = async () => {
     if (selectedIndex < 0) {
       alert("No hay endpoint seleccionado");
@@ -126,33 +126,43 @@ function TestApiMock() {
       }
     }
 
-    // Código a inyectar en el webview
-    const codeToExecute = `
-      fetch("${fullURL}", ${JSON.stringify(options)})
-        .then(res => res.text())
-        .then(text => text)
-        .catch(err => "Error: " + err.message);
-    `;
-    try {
-      if (webviewRef.current) {
+    // Si estamos en Electron y el webview soporta executeJavaScript, se usará
+    if (
+      webviewRef.current &&
+      typeof webviewRef.current.executeJavaScript === "function"
+    ) {
+      const codeToExecute = `
+        fetch("${fullURL}", ${JSON.stringify(options)})
+          .then(res => res.text())
+          .then(text => text)
+          .catch(err => "Error: " + err.message);
+      `;
+      try {
         const result = await webviewRef.current.executeJavaScript(
           codeToExecute
         );
         setResponse(result);
-      } else {
-        setResponse("Error: El webview no está disponible.");
+      } catch (err) {
+        setResponse("Error al ejecutar la solicitud: " + err.message);
       }
-    } catch (err) {
-      setResponse("Error al ejecutar la solicitud: " + err.message);
+    } else {
+      // Fallback para navegador: se usa fetch directamente
+      try {
+        const res = await fetch(fullURL, options);
+        const text = await res.text();
+        setResponse(text);
+      } catch (err) {
+        setResponse("Error al ejecutar la solicitud (Browser): " + err.message);
+      }
     }
   };
 
-  // Renderizado del componente
   const selectedEndpoint = selectedIndex >= 0 ? endpoints[selectedIndex] : null;
 
   return (
     <div className="p-4">
       <h2 className="text-2xl font-bold mb-4">Test API Mock</h2>
+
       {/* Campo para la Base URL */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">Base URL:</label>
@@ -170,6 +180,7 @@ function TestApiMock() {
           Cargar Endpoints
         </button>
       </div>
+
       {/* Dropdown de endpoints */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">
@@ -190,6 +201,7 @@ function TestApiMock() {
           ))}
         </select>
       </div>
+
       {/* Parámetros de la ruta */}
       {selectedEndpoint && (
         <div className="mb-4">
@@ -213,6 +225,7 @@ function TestApiMock() {
           )}
         </div>
       )}
+
       {/* Body para métodos POST/PUT */}
       {selectedEndpoint &&
         (selectedEndpoint.method === "POST" ||
@@ -228,6 +241,7 @@ function TestApiMock() {
             />
           </div>
         )}
+
       {/* Botón para enviar la solicitud */}
       <div className="mb-4">
         <button
@@ -237,6 +251,7 @@ function TestApiMock() {
           Enviar
         </button>
       </div>
+
       {/* Mostrar respuesta */}
       <div className="mb-4">
         <h3 className="font-semibold">Respuesta:</h3>
@@ -244,6 +259,7 @@ function TestApiMock() {
           {response}
         </pre>
       </div>
+
       {/* Webview para cargar la URL (donde se registra el SW) */}
       <div className="mb-4">
         <h3 className="font-semibold">Vista del Webview:</h3>
