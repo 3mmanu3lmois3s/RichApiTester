@@ -1,12 +1,13 @@
 // src/components/TestApiMock.jsx
 import React, { useState, useRef, useEffect } from "react";
 
-// Detecta si estamos en Electron (heurística simple)
-function isElectron() {
-  return navigator.userAgent.toLowerCase().includes("electron");
-}
+// Función para detectar si estamos en Electron: en ese entorno se expone window.electronAPI
+const isElectron = () => {
+  return typeof window.electronAPI !== "undefined";
+};
 
 function TestApiMock() {
+  // Estados para configuración y respuesta
   const [baseUrl, setBaseUrl] = useState("");
   const [endpoints, setEndpoints] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
@@ -14,10 +15,10 @@ function TestApiMock() {
   const [requestBody, setRequestBody] = useState("");
   const [response, setResponse] = useState("");
 
-  // Referencia al webview (solo aplica en Electron)
+  // Referencia al webview (solo usaremos si estamos en Electron)
   const webviewRef = useRef(null);
 
-  // Opcional: registrar eventos del webview para debug
+  // Para depuración: registrar eventos del webview (si existe)
   useEffect(() => {
     if (isElectron() && webviewRef.current) {
       const webview = webviewRef.current;
@@ -34,9 +35,9 @@ function TestApiMock() {
         console.error("webview: did-fail-load", ev.errorDescription);
       });
     }
-  }, []);
+  }, [baseUrl]);
 
-  // Carga mocks_payloads.json desde baseUrl
+  // Función para cargar el archivo mocks_payloads.json desde la base URL
   const loadEndpoints = async () => {
     if (!baseUrl) {
       alert("Por favor ingresa la Base URL");
@@ -67,7 +68,7 @@ function TestApiMock() {
   };
 
   // Extrae parámetros de la ruta (ej: /api/user/:userId)
-  function extractParams(path) {
+  const extractParams = (path) => {
     const regex = /:([a-zA-Z0-9_]+)/g;
     let match;
     const paramNames = [];
@@ -77,9 +78,9 @@ function TestApiMock() {
     const obj = {};
     paramNames.forEach((name) => (obj[name] = ""));
     return obj;
-  }
+  };
 
-  // Al cambiar el dropdown
+  // Maneja el cambio en el dropdown de endpoints
   const handleSelectChange = (e) => {
     const idx = parseInt(e.target.value, 10);
     setSelectedIndex(idx);
@@ -91,16 +92,16 @@ function TestApiMock() {
     }
   };
 
-  // Reemplaza :param con su valor
-  function constructPath(path, paramsObj) {
+  // Reemplaza parámetros en la ruta
+  const constructPath = (path, paramsObj) => {
     let finalPath = path;
-    for (const [key, val] of Object.entries(paramsObj)) {
-      finalPath = finalPath.replace(`:${key}`, val || `:${key}`);
-    }
+    Object.entries(paramsObj).forEach(([key, value]) => {
+      finalPath = finalPath.replace(`:${key}`, value || `:${key}`);
+    });
     return finalPath;
-  }
+  };
 
-  // Al presionar "Enviar"
+  // Al presionar "Enviar": si estamos en Electron y el webview soporta executeJavaScript se usa; sino, se hace fetch directamente
   const handleSendRequest = async () => {
     if (selectedIndex < 0) {
       alert("No hay endpoint seleccionado");
@@ -130,12 +131,12 @@ function TestApiMock() {
       }
     }
 
-    // Si estamos en Electron y existe executeJavaScript, inyectamos fetch en el webview
     if (
       isElectron() &&
       webviewRef.current &&
       typeof webviewRef.current.executeJavaScript === "function"
     ) {
+      // En Electron, inyectamos el fetch en el webview
       const codeToExecute = `
         fetch("${fullURL}", ${JSON.stringify(options)})
           .then(res => res.text())
@@ -153,7 +154,7 @@ function TestApiMock() {
         );
       }
     } else {
-      // En navegador normal, usamos fetch local (se topa con CORS si no está permitido)
+      // En navegador normal o si no se dispone de executeJavaScript, usamos fetch
       try {
         const res = await fetch(fullURL, options);
         const text = await res.text();
@@ -170,7 +171,7 @@ function TestApiMock() {
     <div className="p-4">
       <h2 className="text-2xl font-bold mb-4">Test API Mock</h2>
 
-      {/* Base URL */}
+      {/* Campo para la Base URL */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">Base URL:</label>
         <input
@@ -188,7 +189,7 @@ function TestApiMock() {
         </button>
       </div>
 
-      {/* Dropdown */}
+      {/* Dropdown de endpoints */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">
           Seleccionar Endpoint:
@@ -209,7 +210,7 @@ function TestApiMock() {
         </select>
       </div>
 
-      {/* Parámetros */}
+      {/* Parámetros de la ruta */}
       {selectedEndpoint && (
         <div className="mb-4">
           <h3 className="font-semibold">Parámetros:</h3>
@@ -233,7 +234,7 @@ function TestApiMock() {
         </div>
       )}
 
-      {/* Body si es POST/PUT */}
+      {/* Body para métodos POST/PUT */}
       {selectedEndpoint &&
         (selectedEndpoint.method === "POST" ||
           selectedEndpoint.method === "PUT") && (
@@ -249,7 +250,7 @@ function TestApiMock() {
           </div>
         )}
 
-      {/* Botón Enviar */}
+      {/* Botón para enviar la solicitud */}
       <div className="mb-4">
         <button
           className="px-3 py-1 bg-green-500 text-white rounded"
@@ -259,7 +260,7 @@ function TestApiMock() {
         </button>
       </div>
 
-      {/* Respuesta */}
+      {/* Mostrar respuesta */}
       <div className="mb-4">
         <h3 className="font-semibold">Respuesta:</h3>
         <pre className="bg-gray-100 p-2 border min-h-[80px] whitespace-pre-wrap">
