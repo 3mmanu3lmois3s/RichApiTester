@@ -1,9 +1,5 @@
+// src/components/TestApiMock.jsx
 import React, { useState, useRef, useEffect } from "react";
-
-// Función simple para detectar si estamos en Electron (webview disponible)
-function isElectron() {
-  return window && window.process && window.process.type;
-}
 
 function TestApiMock() {
   // Estados para configuración y respuesta
@@ -14,43 +10,26 @@ function TestApiMock() {
   const [requestBody, setRequestBody] = useState("");
   const [response, setResponse] = useState("");
 
-  // Referencias: para webview en Electron y para iframe en navegador
-  const webviewRef = useRef(null);
+  // Referencia al iframe (usado en navegador)
   const iframeRef = useRef(null);
+  // (Si se ejecuta en Electron, se usaría otro enfoque)
 
-  // Registrar listener para recibir la respuesta del iframe vía postMessage (solo navegador)
+  // Escuchar mensajes que vienen del iframe (respuesta del proxy)
   useEffect(() => {
-    if (!isElectron()) {
-      const handler = (event) => {
-        if (event.data && event.data.type === "fetchResponse") {
-          setResponse(event.data.payload);
+    const handler = (event) => {
+      if (event.data && event.data.type === "fetchResponse") {
+        if (event.data.error) {
+          setResponse("Error: " + event.data.error);
+        } else {
+          setResponse(event.data.text);
         }
-      };
-      window.addEventListener("message", handler);
-      return () => window.removeEventListener("message", handler);
-    }
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
   }, []);
 
-  // Para debug, si usamos webview en Electron
-  useEffect(() => {
-    if (isElectron() && webviewRef.current) {
-      const webview = webviewRef.current;
-      webview.addEventListener("dom-ready", () =>
-        console.log("webview: dom-ready")
-      );
-      webview.addEventListener("did-finish-load", () =>
-        console.log("webview: did-finish-load")
-      );
-      webview.addEventListener("did-stop-loading", () =>
-        console.log("webview: did-stop-loading")
-      );
-      webview.addEventListener("did-fail-load", (ev) =>
-        console.error("webview: did-fail-load", ev.errorDescription)
-      );
-    }
-  }, [baseUrl]);
-
-  // Función para cargar endpoints desde mocks_payloads.json
+  // Función para cargar endpoints (mocks_payloads.json)
   const loadEndpoints = async () => {
     if (!baseUrl) {
       alert("Por favor ingresa la Base URL");
@@ -80,7 +59,7 @@ function TestApiMock() {
     }
   };
 
-  // Extrae nombres de parámetros de la ruta (ej: /api/user/:userId)
+  // Extrae parámetros de la ruta (ejemplo: /api/user/:userId)
   const extractParams = (path) => {
     const regex = /:([a-zA-Z0-9_]+)/g;
     let match;
@@ -93,7 +72,7 @@ function TestApiMock() {
     return obj;
   };
 
-  // Actualiza selección en el dropdown
+  // Maneja el cambio en el dropdown de endpoints
   const handleSelectChange = (e) => {
     const idx = parseInt(e.target.value, 10);
     setSelectedIndex(idx);
@@ -105,7 +84,7 @@ function TestApiMock() {
     }
   };
 
-  // Construye la ruta final reemplazando parámetros
+  // Reemplaza parámetros en la ruta
   const constructPath = (path, paramsObj) => {
     let finalPath = path;
     Object.entries(paramsObj).forEach(([key, value]) => {
@@ -114,7 +93,7 @@ function TestApiMock() {
     return finalPath;
   };
 
-  // Al presionar "Enviar", se ejecuta la solicitud
+  // Al presionar "Enviar", se usa el iframe y postMessage para ejecutar la solicitud
   const handleSendRequest = async () => {
     if (selectedIndex < 0) {
       alert("No hay endpoint seleccionado");
@@ -129,6 +108,7 @@ function TestApiMock() {
       method: ep.method,
       headers: { "Content-Type": "application/json" },
     };
+
     if (ep.method === "POST" || ep.method === "PUT") {
       if (requestBody.trim()) {
         try {
@@ -143,53 +123,26 @@ function TestApiMock() {
       }
     }
 
-    if (
-      isElectron() &&
-      webviewRef.current &&
-      typeof webviewRef.current.executeJavaScript === "function"
-    ) {
-      // En Electron, usamos webview
-      const codeToExecute = `
-        fetch("${fullURL}", ${JSON.stringify(options)})
-          .then(res => res.text())
-          .then(text => text)
-          .catch(err => "Error: " + err.message);
-      `;
-      try {
-        const result = await webviewRef.current.executeJavaScript(
-          codeToExecute
-        );
-        setResponse(result);
-      } catch (err) {
-        setResponse(
-          "Error al ejecutar la solicitud (Electron): " + err.message
-        );
-      }
-    } else if (iframeRef.current) {
-      // En navegador, usamos iframe y postMessage
+    // En lugar de usar executeJavaScript (propio de webview en Electron),
+    // se envía un mensaje al iframe usando postMessage.
+    if (iframeRef.current && iframeRef.current.contentWindow) {
       iframeRef.current.contentWindow.postMessage(
         { type: "fetchRequest", fullURL, options },
-        "*" // En producción, conviene restringir el origin
+        "*" // Considera restringir el targetOrigin si lo puedes
       );
     } else {
-      // Fallback: fetch directo (aunque no pasará por el SW)
-      try {
-        const res = await fetch(fullURL, options);
-        const text = await res.text();
-        setResponse(text);
-      } catch (err) {
-        setResponse(
-          "Error al ejecutar la solicitud (Browser fetch): " + err.message
-        );
-      }
+      setResponse("Error: El iframe no está disponible.");
     }
   };
+
+  // Renderizado del componente
+  const selectedEndpoint = selectedIndex >= 0 ? endpoints[selectedIndex] : null;
 
   return (
     <div className="p-4">
       <h2 className="text-2xl font-bold mb-4">Test API Mock</h2>
 
-      {/* Campo para Base URL */}
+      {/* Campo para la Base URL */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">Base URL:</label>
         <input
@@ -228,8 +181,8 @@ function TestApiMock() {
         </select>
       </div>
 
-      {/* Parámetros dinámicos */}
-      {selectedIndex >= 0 && (
+      {/* Parámetros de la ruta */}
+      {selectedEndpoint && (
         <div className="mb-4">
           <h3 className="font-semibold">Parámetros:</h3>
           {Object.keys(params).length === 0 ? (
@@ -252,10 +205,10 @@ function TestApiMock() {
         </div>
       )}
 
-      {/* Body para POST/PUT */}
-      {selectedIndex >= 0 &&
-        (endpoints[selectedIndex].method === "POST" ||
-          endpoints[selectedIndex].method === "PUT") && (
+      {/* Body para métodos POST/PUT */}
+      {selectedEndpoint &&
+        (selectedEndpoint.method === "POST" ||
+          selectedEndpoint.method === "PUT") && (
           <div className="mb-4">
             <h3 className="font-semibold">Body JSON (opcional):</h3>
             <textarea
@@ -264,11 +217,11 @@ function TestApiMock() {
               placeholder='{"key": "value"}'
               value={requestBody}
               onChange={(e) => setRequestBody(e.target.value)}
-            ></textarea>
+            />
           </div>
         )}
 
-      {/* Botón Enviar */}
+      {/* Botón para enviar la solicitud */}
       <div className="mb-4">
         <button
           className="px-3 py-1 bg-green-500 text-white rounded"
@@ -286,15 +239,16 @@ function TestApiMock() {
         </pre>
       </div>
 
-      {/* Iframe para modo navegador */}
+      {/* Iframe para cargar la URL (se espera que en la URL se encuentre un proxy que reciba postMessage) */}
       <div className="mb-4">
-        <h3 className="font-semibold">Vista del Iframe (modo navegador):</h3>
+        <h3 className="font-semibold">Vista del Iframe:</h3>
         {baseUrl ? (
+          // Se asume que en el repositorio del service worker existe un archivo proxy.html
+          // que incluye el código para recibir postMessage, ejecutar fetch y responder.
           <iframe
             ref={iframeRef}
-            title="Proxy Iframe"
             style={{ width: "100%", height: "300px" }}
-            src="/iframe-proxy.html"
+            src={baseUrl.replace(/\/$/, "") + "/proxy.html"}
           ></iframe>
         ) : (
           <p className="text-gray-500">
