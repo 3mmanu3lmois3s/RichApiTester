@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Iframe Proxy</title>
+  </head>
+  <body>
+    <script>
+      window.addEventListener("message", async (event) => {
+        // En producción, valida event.origin
+        if (event.data && event.data.type === "fetchRequest") {
+          const { fullURL, options } = event.data;
+          try {
+            const res = await fetch(fullURL, options);
+            const text = await res.text();
+            event.source.postMessage(
+              { type: "fetchResponse", payload: text },
+              event.origin
+            );
+          } catch (err) {
+            event.source.postMessage(
+              { type: "fetchResponse", payload: "Error: " + err.message },
+              event.origin
+            );
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
