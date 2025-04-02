@@ -9,19 +9,34 @@ function TestApiMock() {
   const [params, setParams] = useState({});
   const [requestBody, setRequestBody] = useState("");
   const [response, setResponse] = useState("");
+  const [proxyLoaded, setProxyLoaded] = useState(false);
 
   // Referencia al iframe proxy (usado en navegador)
   const proxyIframeRef = useRef(null);
 
-  // Para debug: registrar eventos del iframe proxy (si existe)
+  // Listener para el evento load del iframe proxy
   useEffect(() => {
     if (proxyIframeRef.current) {
       const iframe = proxyIframeRef.current;
-      iframe.addEventListener("load", () => {
-        console.log("proxy iframe: load");
-      });
+      const handleLoad = () => {
+        console.log("Proxy iframe cargado correctamente.");
+        setProxyLoaded(true);
+      };
+      iframe.addEventListener("load", handleLoad);
+      return () => iframe.removeEventListener("load", handleLoad);
     }
   }, [baseUrl]);
+
+  // Listener global opcional para mensajes del proxy
+  useEffect(() => {
+    const messageHandler = (event) => {
+      if (event.data && event.data.type === "fetchResponse") {
+        console.log("Mensaje recibido del proxy:", event.data);
+      }
+    };
+    window.addEventListener("message", messageHandler);
+    return () => window.removeEventListener("message", messageHandler);
+  }, []);
 
   // Función para cargar el archivo mocks_payloads.json desde la base URL
   const loadEndpoints = async () => {
@@ -87,7 +102,7 @@ function TestApiMock() {
     return finalPath;
   };
 
-  // Función para enviar la solicitud
+  // Al presionar "Enviar"
   const handleSendRequest = async () => {
     if (selectedIndex < 0) {
       alert("No hay endpoint seleccionado");
@@ -117,11 +132,10 @@ function TestApiMock() {
       }
     }
 
-    // Si estamos en un navegador normal (donde el webview no existe) usamos el proxy
-    if (proxyIframeRef.current) {
-      // Prepara el mensaje para el proxy
+    // Si estamos en un navegador (proxy iframe está disponible)
+    if (proxyIframeRef.current && proxyLoaded) {
       const message = { type: "fetchRequest", fullURL, options };
-      // Envía el mensaje vía postMessage y espera la respuesta
+      // Enviar mensaje vía postMessage y esperar respuesta
       const responsePromise = new Promise((resolve, reject) => {
         const handler = (event) => {
           if (event.data && event.data.type === "fetchResponse") {
@@ -147,7 +161,7 @@ function TestApiMock() {
         setResponse("Error al ejecutar la solicitud: " + err.message);
       }
     } else {
-      // Si no hay proxy (por ejemplo en Electron donde podemos usar executeJavaScript), usamos directamente fetch
+      // Fallback: si no hay proxy o estamos en Electron, usar fetch directamente
       try {
         const res = await fetch(fullURL, options);
         const text = await res.text();
@@ -262,7 +276,7 @@ function TestApiMock() {
         </pre>
       </div>
 
-      {/* Iframe para el proxy: solo se usará en navegador */}
+      {/* Iframe para el proxy (usado en navegador) */}
       <div className="mb-4">
         <h3 className="font-semibold">Proxy Iframe (para solicitudes)</h3>
         {baseUrl ? (
