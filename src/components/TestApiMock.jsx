@@ -1,26 +1,23 @@
 // src/components/TestApiMock.jsx
 import React, { useState, useRef, useEffect } from "react";
 
-// Detección simple de entorno Electron usando el userAgent
+// Detecta si estamos en Electron (heurística simple)
 function isElectron() {
   return navigator.userAgent.toLowerCase().includes("electron");
 }
 
 function TestApiMock() {
-  // Estados para configuración y respuesta
   const [baseUrl, setBaseUrl] = useState("");
   const [endpoints, setEndpoints] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [params, setParams] = useState({});
   const [requestBody, setRequestBody] = useState("");
   const [response, setResponse] = useState("");
-  // Estado para saber si el webview (en Electron) está listo
-  const [webviewReady, setWebviewReady] = useState(false);
 
-  // Referencia al webview (solo existe en Electron)
+  // Referencia al webview (solo aplica en Electron)
   const webviewRef = useRef(null);
 
-  // Registra eventos del webview (solo en Electron)
+  // Opcional: registrar eventos del webview para debug
   useEffect(() => {
     if (isElectron() && webviewRef.current) {
       const webview = webviewRef.current;
@@ -32,15 +29,14 @@ function TestApiMock() {
       });
       webview.addEventListener("did-stop-loading", () => {
         console.log("webview: did-stop-loading");
-        setWebviewReady(true);
       });
       webview.addEventListener("did-fail-load", (ev) => {
         console.error("webview: did-fail-load", ev.errorDescription);
       });
     }
-  }, [baseUrl]);
+  }, []);
 
-  // Función para cargar el archivo mocks_payloads.json desde la base URL
+  // Carga mocks_payloads.json desde baseUrl
   const loadEndpoints = async () => {
     if (!baseUrl) {
       alert("Por favor ingresa la Base URL");
@@ -64,18 +60,14 @@ function TestApiMock() {
         setParams({});
       }
       setResponse("");
-      // En Electron, reiniciamos el estado de webviewReady para que espere la carga de la nueva URL
-      if (isElectron()) {
-        setWebviewReady(false);
-      }
     } catch (err) {
       console.error(err);
       alert("Error al cargar endpoints: " + err.message);
     }
   };
 
-  // Extrae parámetros de la ruta (ejemplo: /api/user/:userId)
-  const extractParams = (path) => {
+  // Extrae parámetros de la ruta (ej: /api/user/:userId)
+  function extractParams(path) {
     const regex = /:([a-zA-Z0-9_]+)/g;
     let match;
     const paramNames = [];
@@ -85,9 +77,9 @@ function TestApiMock() {
     const obj = {};
     paramNames.forEach((name) => (obj[name] = ""));
     return obj;
-  };
+  }
 
-  // Maneja el cambio en el dropdown de endpoints
+  // Al cambiar el dropdown
   const handleSelectChange = (e) => {
     const idx = parseInt(e.target.value, 10);
     setSelectedIndex(idx);
@@ -99,16 +91,16 @@ function TestApiMock() {
     }
   };
 
-  // Reemplaza parámetros en la ruta con los valores ingresados
-  const constructPath = (path, paramsObj) => {
+  // Reemplaza :param con su valor
+  function constructPath(path, paramsObj) {
     let finalPath = path;
-    Object.entries(paramsObj).forEach(([key, value]) => {
-      finalPath = finalPath.replace(`:${key}`, value || `:${key}`);
-    });
+    for (const [key, val] of Object.entries(paramsObj)) {
+      finalPath = finalPath.replace(`:${key}`, val || `:${key}`);
+    }
     return finalPath;
-  };
+  }
 
-  // Al presionar "Enviar", se usa webview.executeJavaScript en Electron (si el webview está listo) o fetch directamente en navegador
+  // Al presionar "Enviar"
   const handleSendRequest = async () => {
     if (selectedIndex < 0) {
       alert("No hay endpoint seleccionado");
@@ -138,14 +130,12 @@ function TestApiMock() {
       }
     }
 
-    if (isElectron()) {
-      if (!webviewReady) {
-        alert(
-          "El entorno de pruebas aún no está listo. Espera a que la URL se cargue."
-        );
-        return;
-      }
-      // Código a inyectar en el webview
+    // Si estamos en Electron y existe executeJavaScript, inyectamos fetch en el webview
+    if (
+      isElectron() &&
+      webviewRef.current &&
+      typeof webviewRef.current.executeJavaScript === "function"
+    ) {
       const codeToExecute = `
         fetch("${fullURL}", ${JSON.stringify(options)})
           .then(res => res.text())
@@ -158,10 +148,12 @@ function TestApiMock() {
         );
         setResponse(result);
       } catch (err) {
-        setResponse("Error al ejecutar la solicitud: " + err.message);
+        setResponse(
+          "Error al ejecutar la solicitud (Electron-webview): " + err.message
+        );
       }
     } else {
-      // En navegador: usar fetch directamente
+      // En navegador normal, usamos fetch local (se topa con CORS si no está permitido)
       try {
         const res = await fetch(fullURL, options);
         const text = await res.text();
@@ -178,7 +170,7 @@ function TestApiMock() {
     <div className="p-4">
       <h2 className="text-2xl font-bold mb-4">Test API Mock</h2>
 
-      {/* Campo para la Base URL */}
+      {/* Base URL */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">Base URL:</label>
         <input
@@ -196,7 +188,7 @@ function TestApiMock() {
         </button>
       </div>
 
-      {/* Dropdown de endpoints */}
+      {/* Dropdown */}
       <div className="mb-4">
         <label className="block font-semibold mb-1">
           Seleccionar Endpoint:
@@ -217,7 +209,7 @@ function TestApiMock() {
         </select>
       </div>
 
-      {/* Parámetros de la ruta */}
+      {/* Parámetros */}
       {selectedEndpoint && (
         <div className="mb-4">
           <h3 className="font-semibold">Parámetros:</h3>
@@ -241,7 +233,7 @@ function TestApiMock() {
         </div>
       )}
 
-      {/* Body para métodos POST/PUT */}
+      {/* Body si es POST/PUT */}
       {selectedEndpoint &&
         (selectedEndpoint.method === "POST" ||
           selectedEndpoint.method === "PUT") && (
@@ -257,7 +249,7 @@ function TestApiMock() {
           </div>
         )}
 
-      {/* Botón para enviar la solicitud */}
+      {/* Botón Enviar */}
       <div className="mb-4">
         <button
           className="px-3 py-1 bg-green-500 text-white rounded"
@@ -267,7 +259,7 @@ function TestApiMock() {
         </button>
       </div>
 
-      {/* Mostrar respuesta */}
+      {/* Respuesta */}
       <div className="mb-4">
         <h3 className="font-semibold">Respuesta:</h3>
         <pre className="bg-gray-100 p-2 border min-h-[80px] whitespace-pre-wrap">
@@ -275,7 +267,7 @@ function TestApiMock() {
         </pre>
       </div>
 
-      {/* Webview para cargar la URL (solo en Electron) */}
+      {/* Webview solo en Electron */}
       {isElectron() && (
         <div className="mb-4">
           <h3 className="font-semibold">Vista del Webview:</h3>
