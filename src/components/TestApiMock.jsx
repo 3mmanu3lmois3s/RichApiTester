@@ -10,10 +10,10 @@ function TestApiMock() {
   const [requestBody, setRequestBody] = useState("");
   const [response, setResponse] = useState("");
 
-  // Referencia al webview (solo existe en Electron)
+  // Referencia al webview (solo en Electron)
   const webviewRef = useRef(null);
 
-  // Para debug: registrar eventos del webview (si existe)
+  // Registrar eventos del webview para debug (si está disponible)
   useEffect(() => {
     if (webviewRef.current) {
       const webview = webviewRef.current;
@@ -62,7 +62,7 @@ function TestApiMock() {
     }
   };
 
-  // Extrae parámetros de la ruta (ejemplo: /api/user/:userId)
+  // Extrae parámetros de la ruta (por ejemplo: /api/user/:userId)
   const extractParams = (path) => {
     const regex = /:([a-zA-Z0-9_]+)/g;
     let match;
@@ -87,7 +87,7 @@ function TestApiMock() {
     }
   };
 
-  // Reemplaza parámetros en la ruta
+  // Reemplaza los parámetros en la ruta con los valores ingresados
   const constructPath = (path, paramsObj) => {
     let finalPath = path;
     Object.entries(paramsObj).forEach(([key, value]) => {
@@ -126,27 +126,37 @@ function TestApiMock() {
       }
     }
 
-    // Si estamos en Electron y el webview soporta executeJavaScript, se usará
+    // Si estamos en Electron y el entorno indica que es Electron, usamos webview
     if (
-      webviewRef.current &&
-      typeof webviewRef.current.executeJavaScript === "function"
+      window.process &&
+      window.process.versions &&
+      window.process.versions.electron
     ) {
-      const codeToExecute = `
-        fetch("${fullURL}", ${JSON.stringify(options)})
-          .then(res => res.text())
-          .then(text => text)
-          .catch(err => "Error: " + err.message);
-      `;
-      try {
-        const result = await webviewRef.current.executeJavaScript(
-          codeToExecute
+      if (
+        webviewRef.current &&
+        typeof webviewRef.current.executeJavaScript === "function"
+      ) {
+        const codeToExecute = `
+          fetch("${fullURL}", ${JSON.stringify(options)})
+            .then(res => res.text())
+            .then(text => text)
+            .catch(err => "Error: " + err.message);
+        `;
+        try {
+          const result = await webviewRef.current.executeJavaScript(
+            codeToExecute
+          );
+          setResponse(result);
+        } catch (err) {
+          setResponse("Error al ejecutar la solicitud: " + err.message);
+        }
+      } else {
+        setResponse(
+          "Error: El webview no está disponible o no soporta executeJavaScript."
         );
-        setResponse(result);
-      } catch (err) {
-        setResponse("Error al ejecutar la solicitud: " + err.message);
       }
     } else {
-      // Fallback para navegador: se usa fetch directamente
+      // Fallback para navegador: usar fetch directamente
       try {
         const res = await fetch(fullURL, options);
         const text = await res.text();
